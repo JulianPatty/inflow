@@ -1,11 +1,13 @@
-import { Button } from "@/components/ui/button";
+import prisma from "@/lib/db";
 
-const page = () => {
+
+const page = async () => {
+  const users = await prisma.user.findMany();
   return <div>page
+    {users.map((user) => (
+      <div key={user.id}>{user.name}</div>
+    ))}
 
-    <Button>
-      click me
-    </Button>
     </div>
 };
 
