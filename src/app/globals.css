@@ -159,4 +159,25 @@
   --shadow-2xl: var(--shadow-2xl);
 }
 
-body 
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    letter-spacing: var(--tracking-normal);
+  }
+}
+
+@layer base {
+  button:not([disabled]),
+  [role="button"]:not([disabled]) {
+    cursor: pointer;
+  }
+}
+
+/* React Flow node selection styles */
+.react-flow__node.selected #base-node {
+  @apply ring-3 ring-muted-foreground/25 shadow-lg;
+}
