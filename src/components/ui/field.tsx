@@ -196,12 +196,12 @@ function FieldError({
       return children
     }
 
-    if (!errors?.length) {
+    if (!errors) {
       return null
     }
 
-    if (errors?.length == 1) {
-      return errors[0]?.message
+    if (errors?.length === 1 && errors[0]?.message) {
+      return errors[0].message
     }
 
     return (
