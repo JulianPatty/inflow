@@ -8,7 +8,7 @@ export const createTRPCContext = cache(async () => {
   /**
    * @see: https://trpc.io/docs/server/context
    */
-  return { userId: 'user_123' };
+  return {};
 });
 // Avoid exporting the entire t-object
 // since it's not very descriptive.
@@ -40,20 +40,34 @@ export const protectedProcedure = baseProcedure.use(async ({ ctx, next }) => {
 });
 export const premiumProcedure = protectedProcedure.use(
   async ({ ctx, next }) => {
-    const customer = await polarClient.customers.getStateExternal({
-      externalId: ctx.auth.user.id,
-    });
+    try {
+      const customer = await polarClient.customers.getStateExternal({
+        externalId: ctx.auth.user.id,
+      });
 
-    if (
-      !customer.activeSubscriptions ||
-      customer.activeSubscriptions.length === 0
-    ) {
+      if (
+        !customer.activeSubscriptions ||
+        customer.activeSubscriptions.length === 0
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Active subscription required",
+        });
+      }
+
+      return next({ ctx: { ...ctx, customer } });
+    } catch (error) {
+      // If the error is already a TRPCError (like the FORBIDDEN above), rethrow it
+      if (error instanceof TRPCError) {
+        throw error;
+      }
+
+      // For any other error (API failure, customer doesn't exist, etc.),
+      // treat it as "no active subscription"
       throw new TRPCError({
         code: "FORBIDDEN",
         message: "Active subscription required",
       });
     }
-
-    return next({ ctx: { ...ctx, customer } });
   },
 );
