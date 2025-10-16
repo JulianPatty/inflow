@@ -1,5 +1,3 @@
 import { Inngest } from "inngest";
 
-export const inngest = new Inngest({
-  id: "inflow",
-});
+export const inngest = new Inngest({ id: "inflow" });
