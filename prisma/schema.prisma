@@ -92,6 +92,7 @@ enum NodeType {
   INITIAL
   MANUAL_TRIGGER
   HTTP_REQUEST
+  AGENT_NODE
 }
 
 model Node {

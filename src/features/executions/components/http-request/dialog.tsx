@@ -1,5 +1,7 @@
+// Client-side React component
 "use client";
 
+// Import UI components from the component library for building the dialog
 import {
   Dialog,
   DialogContent,
@@ -32,6 +34,8 @@ import { useForm } from "react-hook-form";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 
+// Zod schema for form validation
+// Validates that endpoint is a valid URL and method is one of the allowed HTTP methods
 const formSchema = z.object({
   endpoint: z.url({ message: "Please enter a valid URL" }),
   method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
@@ -41,8 +45,10 @@ const formSchema = z.object({
     // .refine() TODO JSON5
 });
 
+// Export the form values type for use in other components
 export type HttpRequestFormValues = z.infer<typeof formSchema>;
 
+// Props interface for the dialog component
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -50,12 +56,15 @@ interface Props {
   defaultValues?: Partial<HttpRequestFormValues>;
 };
 
+// Dialog component for configuring HTTP request settings
+// Provides form fields for endpoint URL, HTTP method, and request body
 export const HttpRequestDialog = ({
   open,
   onOpenChange,
   onSubmit,
   defaultValues = {},
 }: Props) => {
+  // Initialize react-hook-form with Zod validation and default values
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -66,6 +75,7 @@ export const HttpRequestDialog = ({
   });
 
   // Reset form values when dialog opens with new defaults
+  // This ensures the form always shows the latest node configuration
   useEffect(() => {
     if (open) {
       form.reset({
@@ -76,9 +86,12 @@ export const HttpRequestDialog = ({
     }
   }, [open, defaultValues, form]);
 
+  // Watch the method field to conditionally show/hide the body field
+  // Body field only appears for POST, PUT, and PATCH requests
   const watchMethod = form.watch("method");
   const showBodyField = ["POST", "PUT", "PATCH"].includes(watchMethod);
 
+  // Handle form submission - call parent's onSubmit callback and close dialog
   const handleSubmit = (values: z.infer<typeof formSchema>) => {
     onSubmit(values);
     onOpenChange(false);
@@ -98,6 +111,7 @@ export const HttpRequestDialog = ({
             onSubmit={form.handleSubmit(handleSubmit)}
             className="space-y-8 mt-4"
           >
+            {/* HTTP Method dropdown - allows selection of GET, POST, PUT, PATCH, DELETE */}
             <FormField
               control={form.control}
               name="method"
@@ -128,6 +142,8 @@ export const HttpRequestDialog = ({
                 </FormItem>
               )}
             />
+
+            {/* Endpoint URL input - supports template variables like {{httpResponse.data.id}} */}
             <FormField
               control={form.control}
               name="endpoint"
@@ -147,6 +163,9 @@ export const HttpRequestDialog = ({
                 </FormItem>
               )}
             />
+
+            {/* Request Body textarea - only shown for POST, PUT, and PATCH methods */}
+            {/* Supports JSON with template variables for dynamic values from previous nodes */}
             {showBodyField && (
               <FormField
                 control={form.control}
@@ -171,6 +190,8 @@ export const HttpRequestDialog = ({
               )}
               />
             )}
+
+            {/* Submit button - validates form and saves configuration */}
             <DialogFooter className="mt-4">
               <Button type="submit">Save</Button>
             </DialogFooter>
