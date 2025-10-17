@@ -94,7 +94,7 @@ const { data } = useTRPC().myFeature.myEndpoint.useQuery();
 - **Models**:
   - Better Auth: User, Session, Account, Verification
   - Workflows: Workflow, Node, Connection
-  - Node types: INITIAL, MANUAL_TRIGGER, HTTP_REQUEST (extendable enum)
+  - Node types: INITIAL, MANUAL_TRIGGER, HTTP_REQUEST, AGENT_NODE (extendable enum)
 
 When modifying the schema:
 1. Update `prisma/schema.prisma`
@@ -143,8 +143,14 @@ The workflow system uses a node-based execution model:
 
 **Executor Registry** (`src/features/executions/lib/executor-registry.ts`):
 - Maps `NodeType` enum to executor functions
-- Each executor receives: node data, nodeId, context, Inngest step tools
+- Each executor receives: node data, context, Inngest step tools
 - Must return updated context for next nodes
+
+**Template Variables in Nodes:**
+Nodes support template variable replacement using `{{variable}}` syntax:
+- Simple values: `{{httpResponse.data.name}}`
+- JSON stringification: `{{json httpResponse.data}}`
+- Context is shared across all nodes in a workflow execution
 
 **Adding a new node type:**
 ```typescript
@@ -154,19 +160,35 @@ enum NodeType {
   MY_NEW_NODE
 }
 
-// 2. Create executor in src/features/my-feature/executor.ts
+// 2. Create three files in src/features/executions/components/my-node/:
+//    - executor.ts (execution logic)
+//    - dialog.tsx (configuration UI)
+//    - node.tsx (visual component)
+
+// 3. Executor example
 export const myNodeExecutor: NodeExecutor = async ({ data, context, step }) => {
-  // Your logic here
-  return { ...context, result: 'updated' };
+  const result = await step.run("my-step", async () => {
+    // Your logic here
+    return { ...context, myResult: 'updated' };
+  });
+  return result;
 };
 
-// 3. Register in executor-registry.ts
+// 4. Register in executor-registry.ts
 import { myNodeExecutor } from '@/features/my-feature/executor';
 
 export const executorRegistry: Record<NodeType, NodeExecutor> = {
   // ... existing executors
   [NodeType.MY_NEW_NODE]: myNodeExecutor,
 };
+
+// 5. Register visual component in src/config/node-components.ts
+import { MyNode } from '@/features/executions/components/my-node/node';
+
+export const nodeComponents = {
+  // ... existing components
+  [NodeType.MY_NEW_NODE]: MyNode,
+} as const satisfies NodeTypes;
 ```
 
 ### Authentication with Better Auth
@@ -229,7 +251,11 @@ Use `@/*` for imports: `import { something } from '@/lib/utils'`
 ### Environment Variables
 Required environment variables (check `.env`):
 - `DATABASE_URL` - PostgreSQL connection string
+- `ANTHROPIC_API_KEY` - For Claude AI models (AGENT_NODE)
+- `OPENAI_API_KEY` - For GPT models (AGENT_NODE)
+- `GOOGLE_GENERATIVE_AI_API_KEY` - For Gemini models (AGENT_NODE)
 - Better Auth configuration variables
+- Sentry DSN (optional, for error tracking)
 
 ### Styling
 - Tailwind CSS 4.x with PostCSS
@@ -244,6 +270,63 @@ This project uses **Biome** (not ESLint/Prettier):
 - Auto-organize imports on save
 - Run `npm run lint` to check, `npm run format` to fix
 
+### AI Agent Integration
+
+The application supports AI agents powered by multiple providers via Vercel AI SDK and Inngest AgentKit:
+
+**Supported Providers:**
+- **Anthropic**: Claude models (3.5 Sonnet, 3.5 Haiku, 3 Opus, etc.)
+- **OpenAI**: GPT models (GPT-4o, GPT-4 Turbo, GPT-3.5 Turbo, etc.)
+- **Google**: Gemini models (Gemini 2.0 Flash, 1.5 Pro, etc.)
+
+**AI Dependencies:**
+- `ai` (Vercel AI SDK) - Core AI text generation
+- `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google` - Provider SDKs
+- `@inngest/agent-kit` - Advanced agent toolkit for multi-agent systems
+- `@inngest/use-agent` - React hooks for agent integration
+
+**Agent Node Architecture:**
+The AGENT_NODE type in the workflow system enables AI-powered steps:
+- **Executor** (`src/features/executions/components/agent-node/executor.ts`):
+  - Uses Vercel AI SDK's `generateText()` for simple text generation
+  - Supports all three AI providers with dynamic model selection
+  - Template variable replacement in prompts
+  - Returns `agentResponse` object with text, model, provider, tokensUsed
+- **Dialog** (`src/features/executions/components/agent-node/dialog.tsx`):
+  - Provider selection (Anthropic/OpenAI/Google)
+  - Model dropdown (dynamically updates based on provider)
+  - Temperature slider (0-2)
+  - Max tokens input (1-8192)
+  - Prompt textarea with template variable support
+- **Node Component** (`src/features/executions/components/agent-node/node.tsx`):
+  - Visual representation with BrainCircuit icon
+  - Displays provider name and truncated prompt
+
+**Using AI Agents in Workflows:**
+```typescript
+// Context output from AGENT_NODE
+{
+  agentResponse: {
+    text: "AI-generated response...",
+    provider: "anthropic" | "openai" | "google",
+    model: "claude-3-5-sonnet-20241022",
+    prompt: "Processed prompt with variables...",
+    tokensUsed: 1234
+  }
+}
+
+// Access in subsequent nodes via template variables
+"Process this result: {{agentResponse.text}}"
+```
+
+**Inngest AgentKit (Advanced):**
+For complex multi-agent systems, use `@inngest/agent-kit`:
+- Multi-agent networks with routing
+- Tool calling with MCP support
+- Shared state management across agents
+- Built-in integrations (E2B, Browserbase, Smithery)
+- See AgentKit docs: https://agentkit.inngest.com
+
 ## Key Files
 
 - `src/trpc/init.ts` - tRPC initialization and context
@@ -256,5 +339,6 @@ This project uses **Biome** (not ESLint/Prettier):
 - `src/inngest/utils.ts` - Workflow utilities (topological sort)
 - `src/features/executions/lib/executor-registry.ts` - Node executor mapping
 - `src/features/executions/types.ts` - Workflow execution type definitions
+- `src/config/node-components.ts` - XYFlow node component registry
 - `prisma/schema.prisma` - Database schema with custom output path
 - `mprocs.yaml` - Multi-process configuration for concurrent dev servers
